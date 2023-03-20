@@ -43,7 +43,7 @@ def get_observation(
         filename=get_filepath(dataset_folder, depth_filename),
         lineno=starting_offset + idx,
     ).split()
-    image = cv2.imread(dataset_folder + img_loc)
-    depth = cv2.imread(dataset_folder + depth_loc)
+    image = cv2.imread(get_filepath(dataset_folder, img_loc))
+    depth = cv2.imread(get_filepath(dataset_folder, depth_loc))
     timestamp = float(timestamp)
     return Observation(timestamp, image, depth)

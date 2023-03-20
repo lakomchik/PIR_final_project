@@ -3,7 +3,7 @@ import cv2
 import mrob
 
 
-from tools.data_reader import get_observations
+from tools.data_reader import get_observation
 from tools.tools import point2xyz
 
 
@@ -23,7 +23,6 @@ class VisualOdometry:
         self.poses_id.append(n1)
         self.W_0 = 1e6 * np.identity(6)  # covariation of pose
         self.graph.add_factor_1pose_3d(mrob.geometry.SE3(), self.poses_id[-1], self.W_0)
-        pass
 
     def add_visual_landmark(self, rgb_img, depth_img, timestamp=0.0):
         pass
@@ -45,12 +44,11 @@ class VisualOdometry:
                 continue
             node = self.graph.add_node_landmark_3d(np.zeros(3))
             self.detected_features[ds] = node
-            coords = point2xyz([x_px, y_px], depth)
+            coords = point2xyz([x_px, y_px], depth).to_np_array()
             W = np.identity(3)
             self.graph.add_factor_1pose_1landmark_3d(coords, self.poses_id[-1], node, W)
 
     def observe_3d_landmarks(self, keypoints, descriptions, depth):
-
         pass
 
     # def compare_features(self, img):
@@ -63,7 +61,7 @@ class VisualOdometry:
     #             good.append([m])
 
 
-stamp, img, depth = get_observations(1)
-cv2.imshow("dad", img)
+observation = get_observation(1)
+cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
