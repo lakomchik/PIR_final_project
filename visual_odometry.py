@@ -3,7 +3,7 @@ import cv2
 import mrob
 
 
-from tools.data_reader import get_observations
+from tools.data_reader import get_observation
 from tools.tools import point2xyz
 
 
@@ -48,7 +48,7 @@ class VisualOdometry:
             node = self.graph.add_node_landmark_3d(np.zeros(3))
             # print(ds)
             self.detected_features[tuple(ds)] = node
-            coords = point2xyz([x_px, y_px], depth)
+            coords = point2xyz(np.array([x_px, y_px]), depth).to_np_array()
             W = np.identity(3)
             self.graph.add_factor_1pose_1landmark_3d(coords, self.poses_id[-1], node, W)
 
@@ -60,7 +60,7 @@ class VisualOdometry:
             x_px, y_px = map(int, point.pt)
             if depth[y_px, x_px] == 0:
                 continue
-            coords = point2xyz([x_px, y_px], depth)
+            coords = point2xyz(np.array([x_px, y_px]), depth).to_np_array()
             W = np.identity(3)
             self.graph.add_factor_1pose_1landmark_3d(
                 coords, self.poses_id[-1], self.detected_features[ds], W
@@ -95,11 +95,11 @@ class VisualOdometry:
         self.update_3d_landmarks(updated_kp, updated_features)
 
 
-stamp, img, depth = get_observations(1)
-print(depth[0, 0])
-cv2.imshow("dad", depth)
+observation = get_observation(1)
+print(observation.depth[0, 0])
+cv2.imshow("dad", observation.depth)
 cv2.waitKey(0)
-vis_odom = VisualOdometry(img, depth)
-cv2.imshow("dad", img)
+vis_odom = VisualOdometry(observation.image, observation.depth)
+cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
