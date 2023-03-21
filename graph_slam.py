@@ -4,8 +4,8 @@ import mrob
 
 
 from tools.data_reader import get_observation
-from tools.tools import point2xyz
-from tools.tools import quaternion_rotation_matrix
+from tools.math_methods import point2xyz
+from tools.math_methods import quaternion_rotation_matrix
 import math
 
 
