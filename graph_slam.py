@@ -7,7 +7,7 @@ from tools.data_reader import get_observation
 from tools.tools import point2xyz
 
 
-class VisualOdometry:
+class GraphSlam:
     def __init__(self, img, depth) -> None:
         self.graph = mrob.FGraph()
         self.detected_features = (
@@ -25,9 +25,6 @@ class VisualOdometry:
         self.graph.add_factor_1pose_3d(mrob.geometry.SE3(), self.poses_id[-1], self.W_0)
         kp, ds = self.get_img_features(img)
         self.add_3d_landmarks(kp, ds, depth)
-        pass
-
-    def add_visual_landmark(self, rgb_img, depth_img, timestamp=0.0):
         pass
 
     def get_img_features(self, img, type="ORB"):
@@ -73,7 +70,7 @@ class VisualOdometry:
     def process_image_and_depth(self, img, depth):
         kp, ds = self.get_img_features(img)
         features_list = list(self.detected_features.keys())
-        matches = self.bf.knnMatch(features_list, kp)
+        matches = self.bf.knnMatch(features_list, ds)
         # Apply ratio test
         good = []
         for m, n in matches:
@@ -99,7 +96,7 @@ observation = get_observation(1)
 print(observation.depth[0, 0])
 cv2.imshow("dad", observation.depth)
 cv2.waitKey(0)
-vis_odom = VisualOdometry(observation.image, observation.depth)
+vis_odom = GraphSlam(observation.image, observation.depth)
 cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
