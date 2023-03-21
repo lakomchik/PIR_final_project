@@ -1,257 +1,378 @@
-import os, sys, copy, time
+import sys
 import numpy as np
 import cv2 as cv
-import matplotlib.pyplot as plt
-import seaborn as sns
-import math, glob
-from scipy import stats  
 import random as rand
-import sympy as sp
+import dataclasses
 
-inv = np.linalg.inv
-det = np.linalg.det
-svd = np.linalg.svd
+from typing import List, Tuple, Dict
 
-K = np.array([[1283.62955  , 0.      ,   1237.25269],
-              [  0.       ,  1520.93129, 1027.96615],
-              [  0.,           0.,           1.    ]])
+K = np.array(
+    [[1283.62955, 0.0, 1237.25269], [0.0, 1520.93129, 1027.96615], [0.0, 0.0, 1.0]]
+)
 
-K_inv = np.linalg.inv(K) 
 
 class Cells:
     def __init__(self):
-        self.pts = list()
-        self.pairs = dict()
+        self.pts = []
+        self.pairs = {}
 
-    def rand_pt(self):
-        return rand.choice(self.pts)
-    
+    def rand_pt(self) -> Tuple | None:
+        try:
+            res = rand.choice(self.pts)
+            return res
+        except IndexError:
+            return None
+
+
+@dataclasses.dataclass
+class CameraOffsets:
+    R: Dict[int, np.ndarray]
+    C: Dict[int, np.ndarray]
+
+    def make_positive_det(self) -> None:
+        for i in self.R.keys():
+            if np.linalg.det(self.R[i]) < 0:
+                self.R[i] *= -1
+                self.C[i] *= -1
+
+
 class VisualOdometry:
-    # =========================================================================================================================================================================================================================== #
-    # Get Random 8 points from different regions in a Image using Zhang's 8x8 Grid
-    # =========================================================================================================================================================================================================================== #
-    def get_rand8(self, grid: np.array)-> list:            
-        cells = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7)]
-        rand_grid_index = rand.choices(cells, k = 8)   
-        rand8 = list() 
-        rand8_ = list()        
+    @staticmethod
+    def get_rand8(grid: np.ndarray) -> Tuple[np.ndarray]:
+        """
+        Get random 8 points from different regions in a Image using Zhang's 8x8 Grid
+
+        Args:
+            grid (np.ndarray): Zhang's Grid
+
+        Returns:
+            Tuple[np.ndarray]: Point indexes in grid and corresponding points
+        """
+        cells = []
+        for i in range(8):
+            for j in range(8):
+                cells.append((i, j))
+        rand_grid_index = rand.choices(cells, k=8)
+        rand8 = []
+        rand8_ = []
         for index in rand_grid_index:
-            if grid[index].pts: 
+            if grid[index].pts:
                 pt = grid[index].rand_pt()
                 rand8.append(pt)
             else:
                 index = rand.choice(cells)
                 while not grid[index].pts or index in rand_grid_index:
-                    index = rand.choice(cells) 
+                    index = rand.choice(cells)
                 pt = grid[index].rand_pt()
                 rand8.append(pt)
 
             # -----> find the correspondence given point <----- #
             rand8_.append(grid[index].pairs[pt])
-        return rand8, rand8_
-    # =========================================================================================================================================================================================================================== #
-    # Calculate Fundamental Matrix for the given * points from RANSAC
-    # =========================================================================================================================================================================================================================== #  
-    def calcualte_fundamental_matrix(self, pts_cf: np.array, pts_nf: np.array)-> list:
-        F_CV,_ = cv.findFundamentalMat(pts_cf,pts_nf,cv.FM_8POINT)
-        mat = []
-        origin = [0.,0.]
-        origin_ = [0.,0.]	
-        origin = np.mean(pts_cf, axis = 0)
-        origin_ = np.mean(pts_nf, axis = 0)	
-        k = np.mean(np.sum((pts_cf - origin)**2 , axis=1, keepdims=True)**.5)
-        k_ = np.mean(np.sum((pts_nf - origin_)**2 , axis=1, keepdims=True)**.5)
-        k = np.sqrt(2.)/k
-        k_ = np.sqrt(2.)/k_
-        x = ( pts_cf[:, 0].reshape((-1,1)) - origin[0])*k
-        y = ( pts_cf[:, 1].reshape((-1,1)) - origin[1])*k
-        x_ = ( pts_nf[:, 0].reshape((-1,1)) - origin_[0])*k_
-        y_ = ( pts_nf[:, 1].reshape((-1,1)) - origin_[1])*k_
-        A = np.hstack((x_*x, x_*y, x_, y_ * x, y_ * y, y_, x,  y, np.ones((len(x),1))))	
-        U,S,V = np.linalg.svd(A)
-        F = V[-1]
-        F = np.reshape(F,(3,3))
-        U,S,V = np.linalg.svd(F)
-        S[2] = 0
-        F = U@np.diag(S)@V	
-        T1 = np.array([[k, 0,-k*origin[0]], [0, k, -k*origin[1]], [0, 0, 1]])
-        T2 = np.array([[k_, 0,-k_*origin_[0]], [0, k_, -k_*origin_[1]], [0, 0, 1]])
-        F = T2.T @ F @ T1
-        F = F / F[-1,-1]
-        return F,F_CV
+        return np.array(rand8), np.array(rand8_)
 
-    # =========================================================================================================================================================================================================================== #
-    # Estimate Fundamental Matrix from the given correspondences using RANSAC
-    # =========================================================================================================================================================================================================================== #  
-    def estimate_fundamental_matrix_RANSAC(self, pts1, pts2, matches, grid, epsilon = 0.05)-> list:
-        max_inliers= 0
+    @staticmethod
+    def calculate_fundamental_matrix(
+        pts_cf: np.ndarray, pts_nf: np.ndarray
+    ) -> np.ndarray:
+        """
+        Calculate Fundamental Matrix for the given points from RANSAC
+
+        Args:
+            pts_cf (np.ndarray): Point indexes in grid
+            pts_nf (np.ndarray): Corresponding points
+
+        Returns:
+            np.ndarray: Calculated fundamental matrix
+        """
+        origin = [0.0, 0.0]
+        origin_ = [0.0, 0.0]
+        origin = np.mean(pts_cf, axis=0)
+        origin_ = np.mean(pts_nf, axis=0)
+        k = np.mean(np.sum((pts_cf - origin) ** 2, axis=1, keepdims=True) ** 0.5)
+        k_ = np.mean(np.sum((pts_nf - origin_) ** 2, axis=1, keepdims=True) ** 0.5)
+        k = np.sqrt(2.0) / k
+        k_ = np.sqrt(2.0) / k_
+        x = (pts_cf[:, 0].reshape((-1, 1)) - origin[0]) * k
+        y = (pts_cf[:, 1].reshape((-1, 1)) - origin[1]) * k
+        x_ = (pts_nf[:, 0].reshape((-1, 1)) - origin_[0]) * k_
+        y_ = (pts_nf[:, 1].reshape((-1, 1)) - origin_[1]) * k_
+        A = np.hstack(
+            (x_ * x, x_ * y, x_, y_ * x, y_ * y, y_, x, y, np.ones((len(x), 1)))
+        )
+        U, S, V = np.linalg.svd(A)
+        F = V[-1]
+        F = np.reshape(F, (3, 3))
+        U, S, V = np.linalg.svd(F)
+        S[2] = 0
+        F = U @ np.diag(S) @ V
+        T1 = np.array([[k, 0, -k * origin[0]], [0, k, -k * origin[1]], [0, 0, 1]])
+        T2 = np.array([[k_, 0, -k_ * origin_[0]], [0, k_, -k_ * origin_[1]], [0, 0, 1]])
+        F = T2.T @ F @ T1
+        F = F / F[-1, -1]
+        return F
+
+    @staticmethod
+    def estimate_fundamental_matrix_RANSAC(
+        pts1: np.ndarray,
+        pts2: np.ndarray,
+        grid: np.ndarray,
+        epsilon: float = 0.05,
+    ) -> np.ndarray:
+        """
+        Estimate Fundamental Matrix from the given correspondences using RANSAC
+
+        Args:
+            pts1 (np.ndarray): Point indexes in grid
+            pts2 (np.ndarray): Corresponding points
+            grid (np.ndarray): Zhang's Grid
+            epsilon (float, optional): Error threshold. Defaults to 0.05.
+
+        Returns:
+            np.ndarray: Estimated fundamental matrix
+        """
+        max_inliers = 0
         F_best = []
-        S_in = []
         confidence = 0.99
         N = sys.maxsize
         count = 0
         while N > count:
-            S = []
             counter = 0
-            x_1,x_2 = self.get_rand8(grid)
-            F,F_b = self.calcualte_fundamental_matrix(np.array(x_1), np.array(x_2))
-            ones = np.ones((len(pts1),1))
-            x = np.hstack((pts1,ones))
-            x_ = np.hstack((pts2,ones))
+            x_1, x_2 = VisualOdometry.get_rand8(grid)
+            F = VisualOdometry.calculate_fundamental_matrix(x_1, x_2)
+            ones = np.ones((len(pts1), 1))
+            x = np.hstack((pts1, ones))
+            x_ = np.hstack((pts2, ones))
             e, e_ = x @ F.T, x_ @ F
-            error = np.sum(e_* x, axis = 1, keepdims=True)**2 / np.sum(np.hstack((e[:, :-1],e_[:,:-1]))**2, axis = 1, keepdims=True)
-            inliers = error<=epsilon
+            error = np.sum(e_ * x, axis=1, keepdims=True) ** 2 / np.sum(
+                np.hstack((e[:, :-1], e_[:, :-1])) ** 2, axis=1, keepdims=True
+            )
+            inliers = error <= epsilon
             counter = np.sum(inliers)
-            if max_inliers <  counter:
+            if max_inliers < counter:
                 max_inliers = counter
-                F_best = F 
-            I_O_ratio = counter/len(pts1)
-            if np.log(1-(I_O_ratio**8)) == 0: continue
-            N = np.log(1-confidence)/np.log(1-(I_O_ratio**8))
+                F_best = F
+            I_O_ratio = counter / len(pts1)
+            if np.log(1 - (I_O_ratio**8)) == 0:
+                continue
+            N = np.log(1 - confidence) / np.log(1 - (I_O_ratio**8))
             count += 1
         return F_best
-    # =========================================================================================================================================================================================================================== #
-    # Estimate Essential Matrix 
-    # =========================================================================================================================================================================================================================== #
-    def estimate_Essential_Matrix(self, K: np.array, F: np.array)-> np.array:	
+
+    @staticmethod
+    def estimate_essential_matrix(K: np.ndarray, F: np.ndarray) -> np.ndarray:
+        """
+        Estimate essential matrix
+
+        Args:
+            K (np.ndarray): Camera calibration matrix
+            F (np.ndarray): Fundamental matrix
+
+        Returns:
+            np.ndarray: Estimatde essential matrix
+        """
         E = K.T @ F @ K
-        U,S,V = np.linalg.svd(E)
-        S = [[1,0,0],[0,1,0],[0,0,0]]
+        U, S, V = np.linalg.svd(E)
+        S = [[1, 0, 0], [0, 1, 0], [0, 0, 0]]
         E = U @ S @ V
         return E
 
-    # =========================================================================================================================================================================================================================== #
-    # Perform Linear Triangulation
-    # =========================================================================================================================================================================================================================== #
-    def linear_triangulation(self, K: np.array, C1: np.array, R1: np.array, C2: np.array, R2: np.array, pt: np.array, pt_: np.array)-> list:
+    @staticmethod
+    def linear_triangulation(
+        K: np.ndarray,
+        C1: np.ndarray,
+        R1: np.ndarray,
+        C2: np.ndarray,
+        R2: np.ndarray,
+        pt: np.ndarray,
+        pt_: np.ndarray,
+    ) -> List:
+        """
+        Calculate Linear Triangulation
+
+        Args:
+            K (np.ndarray): Camera calibration matrix
+            C1 (np.ndarray): Translation vector for initial position
+            R1 (np.ndarray): Rotation matrix for initial position
+            C2 (np.ndarray): Translation vector for final position
+            R2 (np.ndarray): Rotation matrix for final position
+            pt (np.ndarray): Point indexes in grid
+            pt_ (np.ndarray): Corresponding points
+
+        Returns:
+            List: _description_
+        """
         P1 = K @ np.hstack((R1, -R1 @ C1))
-        P2 = K @ np.hstack((R2, -R2 @ C2))	
+        P2 = K @ np.hstack((R2, -R2 @ C2))
         X = []
         for i in range(len(pt)):
             x1 = pt[i]
             x2 = pt_[i]
-            A1 = x1[0]*P1[2,:]-P1[0,:]
-            A2 = x1[1]*P1[2,:]-P1[1,:]
-            A3 = x2[0]*P2[2,:]-P2[0,:]
-            A4 = x2[1]*P2[2,:]-P2[1,:]		
+            A1 = x1[0] * P1[2, :] - P1[0, :]
+            A2 = x1[1] * P1[2, :] - P1[1, :]
+            A3 = x2[0] * P2[2, :] - P2[0, :]
+            A4 = x2[1] * P2[2, :] - P2[1, :]
             A = [A1, A2, A3, A4]
-            U,S,V = np.linalg.svd(A)
+            _, _, V = np.linalg.svd(A)
             V = V[3]
-            V = V/V[-1]
+            V = V / V[-1]
             X.append(V)
         return X
 
-    # =========================================================================================================================================================================================================================== #
-    # Estimate the camera Pose
-    # =========================================================================================================================================================================================================================== #
-    def camera_pose(self, K: np.array, E: np.array):
-        W = np.array([[0,-1,0],[1,0,0],[0,0,1]])
-        U,S,V = np.linalg.svd(E)
-        poses = {}
-        poses['C1'] = U[:,2].reshape(3,1)
-        poses['C2'] = -U[:,2].reshape(3,1)
-        poses['C3'] = U[:,2].reshape(3,1)
-        poses['C4'] = -U[:,2].reshape(3,1)
-        poses['R1'] = U @ W @ V
-        poses['R2'] = U @ W @ V 
-        poses['R3'] = U @ W.T @ V
-        poses['R4'] = U @ W.T @ V
-        for i in range(4):
-            C = poses['C'+str(i+1)]
-            R = poses['R'+str(i+1)]
-            if np.linalg.det(R) < 0:
-                C = -C 
-                R = -R 
-                poses['C'+str(i+1)] = C 
-                poses['R'+str(i+1)] = R
-            I = np.eye(3,3)
-            M = np.hstack((I,C.reshape(3,1)))
-            poses['P'+str(i+1)] = K @ R @ M
-        return poses
+    @staticmethod
+    def get_camera_offsets(E: np.array) -> CameraOffsets:
+        """
+        Estimate the camera Pose
 
-    # =========================================================================================================================================================================================================================== #
-    # Find the Rotation and Translation parametters
-    # =========================================================================================================================================================================================================================== #
-    def extract_Rot_and_Trans(self, R1: np.array, t: np.array, pt: np.array, pt_: np.array, K: np.array):
-        C = [[0],[0],[0]]
-        R = np.eye(3,3)
-        P = np.eye(3,4)
-        P_ = np.hstack((R1,t))
-        X1 = self.linear_triangulation(K, C, R,t,R1, pt, pt_)
-        X1 = np.array(X1)	
+        Args:
+            K (np.array): Camera calibration matrix
+            E (np.array): Essential matrix
+
+        Returns:
+            CameraOffsets: Camera offsets
+        """
+        W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+        U, _, V = np.linalg.svd(E)
+        camera_offsets = CameraOffsets(
+            R={
+                1: U @ W @ V,
+                2: U @ W @ V,
+                3: U @ W.T @ V,
+                4: U @ W.T @ V,
+            },
+            C={
+                1: U[:, 2].reshape(3, 1),
+                2: -U[:, 2].reshape(3, 1),
+                3: U[:, 2].reshape(3, 1),
+                4: -U[:, 2].reshape(3, 1),
+            },
+        )
+        camera_offsets.make_positive_det()
+        return camera_offsets
+
+    @staticmethod
+    def extract_rot_and_trans(
+        R: np.ndarray,
+        T: np.ndarray,
+        pt: np.ndarray,
+        pt_: np.ndarray,
+        K: np.ndarray,
+    ) -> int:
+        """
+        Find the Rotation and Translation parameters
+
+        Args:
+            R (np.ndarray): Rotation matrix from camera offsets
+            T (np.ndarray): Translation vector from camera offsets
+            pt (np.ndarray): Point indexes in grid
+            pt_ (np.ndarray): Corresponding points
+            K (np.ndarray): Camera calibration matrix
+
+        Returns:
+            int: _description_
+        """
+        C = [[0], [0], [0]]
+        R = np.eye(3, 3)
+        X1 = VisualOdometry.linear_triangulation(K, C, R, T, R, pt, pt_)
+        X1 = np.array(X1)
         count = 0
         for i in range(X1.shape[0]):
-            x = X1[i,:].reshape(-1,1)
-            if R1[2]@np.subtract(x[0:3],t) > 0 and x[2] > 0: count += 1
+            x = X1[i, :].reshape(-1, 1)
+            if R[2] @ np.subtract(x[0:3], T) > 0 and x[2] > 0:
+                count += 1
         return count
 
-    # =========================================================================================================================================================================================================================== #
 
-def omega_and_v_between_frames(time_stamp, key_frame1, key_frame2):
-    # ----> Initialising Variables <----- # 
-    Translation = np.zeros((3, 1))
-    Rotation = np.eye(3)
-    
+@dataclasses.dataclass
+class Measurement:
+    omega: np.ndarray
+    v: np.ndarray
+
+
+def get_measurement(
+    key_frame1: np.ndarray,
+    key_frame2: np.ndarray,
+    time_stamp: int,
+) -> Measurement:
+    """
+    Measure velocities between two frames
+
+    Args:
+        time_stamp (int): Timestamp
+        key_frame1 (np.ndarray): Image of initial position
+        key_frame2 (np.ndarray): Image of final position
+
+    Returns:
+        Measurement: Linear and angular velocities
+    """
     frame1 = key_frame1.copy()
-    frame1 = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY) 
+    frame1 = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY)
     img_dim = key_frame1.shape
-    y_bar, x_bar = np.array(img_dim[:-1])/8
-      
+    y_bar, x_bar = np.array(img_dim[:-1]) / 8
 
-    # -----> ORB Feature Detection <----- #
     frame2 = key_frame2.copy()
-    frame2 = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY) 
+    frame2 = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
 
-    # -----> Feature extraction using SIFT Algorithm <----- #
-    sift = cv.xfeatures2d.SIFT_create()	
-    kp_cf,des_current = sift.detectAndCompute(frame1,None)
-    kp_nf,des_next = sift.detectAndCompute(frame2,None)
+    sift = cv.xfeatures2d.SIFT_create()
+    kp_cf, des_current = sift.detectAndCompute(frame1, None)
+    kp_nf, des_next = sift.detectAndCompute(frame2, None)
 
-    # -----> Extract the best matches <----- #
     best_matches = []
     bf = cv.BFMatcher()
-    matches = bf.knnMatch(des_current,des_next,k=2)
-    for m,n in matches:
-        if m.distance < 0.5*n.distance: best_matches.append(m)
-    
-    # -----> Initialise the grids and points array variables <----- #
-    point_correspondence_cf = np.zeros((len(best_matches),2))
-    point_correspondence_nf = np.zeros((len(best_matches),2))
-    grid = np.empty((8,8), dtype=object)
-    grid[:,:] = Cells()
+    matches = bf.knnMatch(des_current, des_next, k=2)
+    for m, n in matches:
+        if m.distance < 0.5 * n.distance:
+            best_matches.append(m)
 
-    # ----> Generating Zhang's Grid & extracting points from matches<----- #
+    point_correspondence_cf = np.zeros((len(best_matches), 2))
+    point_correspondence_nf = np.zeros((len(best_matches), 2))
+    grid = np.empty((8, 8), dtype=object)
+    grid[:, :] = Cells()
+
     for i, match in enumerate(best_matches):
-        j = int(kp_cf[match.queryIdx].pt[0]/x_bar)
-        k = int(kp_cf[match.queryIdx].pt[1]/y_bar)
-        grid[j,k].pts.append(kp_cf[match.queryIdx].pt)
-        grid[j,k].pairs[kp_cf[match.queryIdx].pt] = kp_nf[match.trainIdx].pt
+        j = int(kp_cf[match.queryIdx].pt[0] / x_bar)
+        k = int(kp_cf[match.queryIdx].pt[1] / y_bar)
+        grid[j, k].pts.append(kp_cf[match.queryIdx].pt)
+        grid[j, k].pairs[kp_cf[match.queryIdx].pt] = kp_nf[match.trainIdx].pt
 
-        point_correspondence_cf[i] = kp_cf[match.queryIdx].pt[0], kp_cf[match.queryIdx].pt[1]
-        point_correspondence_nf[i] = kp_nf[match.trainIdx].pt[0], kp_nf[match.trainIdx].pt[1]
-    
-    F = VisualOdometry().estimate_fundamental_matrix_RANSAC(point_correspondence_cf, point_correspondence_nf, matches, grid, 0.05)				    # Estimate the Fundamental matrix #	
-    E = VisualOdometry().estimate_Essential_Matrix(K, F)																							# Estimate the Essential Matrix #
-    pose = VisualOdometry().camera_pose(K,E)																										# Estimate the Posses Matrix #
+        point_correspondence_cf[i] = (
+            kp_cf[match.queryIdx].pt[0],
+            kp_cf[match.queryIdx].pt[1],
+        )
+        point_correspondence_nf[i] = (
+            kp_nf[match.trainIdx].pt[0],
+            kp_nf[match.trainIdx].pt[1],
+        )
 
-    # -----> Estimate Rotation and Translation points <----- #
+    F = VisualOdometry.estimate_fundamental_matrix_RANSAC(
+        pts1=point_correspondence_cf,
+        pts2=point_correspondence_nf,
+        grid=grid,
+        epsilon=0.05,
+    )
+    E = VisualOdometry.estimate_essential_matrix(K, F)
+    camera_offsets = VisualOdometry.get_camera_offsets(E)
+
     flag = 0
-    for p in range(4):
-        R = pose['R'+str(p+1)]
-        T = pose['C'+str(p+1)]
-        Z = VisualOdometry().extract_Rot_and_Trans(R, T, point_correspondence_cf, point_correspondence_nf, K)
-        if flag < Z: flag, reg = Z, str(p+1)
+    for p in camera_offsets.R.keys():
+        R = camera_offsets.R[p]
+        T = camera_offsets.C[p]
+        Z = VisualOdometry.extract_rot_and_trans(
+            R, T, point_correspondence_cf, point_correspondence_nf, K
+        )
+        if flag < Z:
+            flag, reg = Z, p
 
-    R = pose['R'+reg]
+    R = camera_offsets.R[reg]
     (rvec, _) = cv.Rodrigues(R)
-    tvec = pose['C'+reg]
-    v = tvec/time_stamp
-    omega = rvec/time_stamp
+    tvec = camera_offsets.C[reg]
+    v = tvec / time_stamp
+    omega = rvec / time_stamp
     print(omega)
     print(v)
-    return omega, v
+    return Measurement(omega, v)
 
-frame1 = cv.imread('datasets/rgbd_dataset_freiburg1_xyz\\rgb\\1305031102.175304.png')
-frame2 = cv.imread('datasets/rgbd_dataset_freiburg1_xyz\\rgb\\1305031102.211214.png')
 
-omega_and_v_between_frames(1, frame1, frame2)
+frame1 = cv.imread("datasets/rgbd_dataset_freiburg1_xyz/rgb/1305031102.175304.png")
+frame2 = cv.imread("datasets/rgbd_dataset_freiburg1_xyz/rgb/1305031102.211214.png")
+
+get_measurement(frame1, frame2, 1)
