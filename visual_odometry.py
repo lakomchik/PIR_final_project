@@ -5,10 +5,7 @@ import random as rand
 import dataclasses
 
 from typing import List, Tuple, Dict
-
-K = np.array(
-    [[1283.62955, 0.0, 1237.25269], [0.0, 1520.93129, 1027.96615], [0.0, 0.0, 1.0]]
-)
+from tools.camera_params import CameraParams
 
 
 class Cells:
@@ -34,6 +31,24 @@ class CameraOffsets:
             if np.linalg.det(self.R[i]) < 0:
                 self.R[i] *= -1
                 self.C[i] *= -1
+
+
+@dataclasses.dataclass
+class Measurement:
+    omega: np.ndarray
+    v: np.ndarray
+
+    def to_np_array(self):
+        return np.array(
+            [
+                self.omega[0],
+                self.omega[1],
+                self.omega[2],
+                self.v[0],
+                self.v[1],
+                self.v[2],
+            ]
+        )
 
 
 class VisualOdometry:
@@ -168,7 +183,7 @@ class VisualOdometry:
             F (np.ndarray): Fundamental matrix
 
         Returns:
-            np.ndarray: Estimatde essential matrix
+            np.ndarray: Estimated essential matrix
         """
         E = K.T @ F @ K
         U, S, V = np.linalg.svd(E)
@@ -185,7 +200,7 @@ class VisualOdometry:
         R2: np.ndarray,
         pt: np.ndarray,
         pt_: np.ndarray,
-    ) -> List:
+    ) -> List[np.ndarray]:
         """
         Calculate Linear Triangulation
 
@@ -199,7 +214,7 @@ class VisualOdometry:
             pt_ (np.ndarray): Corresponding points
 
         Returns:
-            List: _description_
+            List[np.ndarray]: _description_
         """
         P1 = K @ np.hstack((R1, -R1 @ C1))
         P2 = K @ np.hstack((R2, -R2 @ C2))
@@ -258,7 +273,7 @@ class VisualOdometry:
         K: np.ndarray,
     ) -> int:
         """
-        Find the Rotation and Translation parameters
+        Find the rotation and translation parameters
 
         Args:
             R (np.ndarray): Rotation matrix from camera offsets
@@ -277,15 +292,9 @@ class VisualOdometry:
         count = 0
         for i in range(X1.shape[0]):
             x = X1[i, :].reshape(-1, 1)
-            if R[2] @ np.subtract(x[0:3], T) > 0 and x[2] > 0:
+            if R[2] @ (x[0:3] - T) > 0 and x[2] > 0:
                 count += 1
         return count
-
-
-@dataclasses.dataclass
-class Measurement:
-    omega: np.ndarray
-    v: np.ndarray
 
 
 def get_measurement(
@@ -342,6 +351,7 @@ def get_measurement(
             kp_nf[match.trainIdx].pt[0],
             kp_nf[match.trainIdx].pt[1],
         )
+    K = CameraParams().calibration_matrix()
 
     F = VisualOdometry.estimate_fundamental_matrix_RANSAC(
         pts1=point_correspondence_cf,
@@ -357,7 +367,11 @@ def get_measurement(
         R = camera_offsets.R[p]
         T = camera_offsets.C[p]
         Z = VisualOdometry.extract_rot_and_trans(
-            R, T, point_correspondence_cf, point_correspondence_nf, K
+            R,
+            T,
+            point_correspondence_cf,
+            point_correspondence_nf,
+            K,
         )
         if flag < Z:
             flag, reg = Z, p
