@@ -18,10 +18,10 @@ class GraphSlam:
         self.poses_id = []  # idx in graph for poses
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher()
-        self.W_obs = np.eye(3) * 10e5
-        n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3())
+        self.W_obs = np.eye(3) * 10e1
+        n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3(init_mat))
         self.poses_id.append(n1)
-        self.W_0 = 1e10 * np.identity(6)  # covariation of pose
+        self.W_0 = 10e6 * np.identity(6)  # covariation of pose
         self.graph.add_factor_1pose_3d(
             mrob.geometry.SE3(init_mat), self.poses_id[-1], self.W_0
         )
@@ -73,8 +73,9 @@ class GraphSlam:
             mrob.geometry.SE3(),
             self.poses_id[-2],
             self.poses_id[-1],
-            1e6 * np.identity(6),
+            1e2 * np.identity(6),
         )
+        ###add also odometry
         self.process_image_and_depth(img, depth)
         pass
 
@@ -87,7 +88,7 @@ class GraphSlam:
         # Apply ratio test
         good = []
         for m, n in matches:
-            if m.distance < 0.9 * n.distance:
+            if m.distance < 0.2 * n.distance:
                 good.append([m])
 
         similarity_mask = np.zeros_like(kp, dtype=bool)
@@ -111,7 +112,7 @@ observation = get_observation(0)
 # cv2.imshow("dad", observation.depth)
 # cv2.waitKey(0)
 
-pose = np.array([1.2788, 0.5815, 1.4563, 0.6652, 0.651, -0.2817, -0.2332])
+pose = np.array([1.3452, 0.6273, 1.6627, 0.6582, 0.6109, -0.295, -0.3265])
 init_mat = np.eye(4)
 init_mat[:3, :3] = quaternion_rotation_matrix(pose[3:])
 init_mat[:3, 3] = pose[0:3]
@@ -127,27 +128,34 @@ cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 chi2 = []
-for i in range(1, 10):
+for i in range(1, 50):
     observation = get_observation(i)
     # cv2.imshow("dad", observation.image)
-    # cv2.waitKey(10)
+    # cv2.waitKey(20)
     # cv2.destroyAllWindows()
-    # print(len(graph_slam.detected_features))
+    print(len(graph_slam.detected_features))
     graph_slam.step(observation.image, observation.depth)
     print("Amount of descriptions in dictionary is", len(graph_slam.detected_features))
-    graph_slam.graph.solve(mrob.LM)
-    chi2.append(graph_slam.graph.chi2())
 
+    # chi2.append(graph_slam.graph.chi2())
 
+graph_slam.graph.solve(mrob.LM)
 import matplotlib.pyplot as plt
 import matplotlib
 
 print(graph_slam.poses_id)
 matplotlib.use("TkAgg")
-plt.plot(np.arange(len(chi2)), chi2)
-plt.show()
+# plt.plot(np.arange(len(chi2)), chi2)
+# plt.show()
 
 
 est_states = graph_slam.graph.get_estimated_state()
+est_trajectory = np.zeros([0, 4, 4])
 for el in graph_slam.poses_id:
-    print(est_states[el])
+    est_trajectory = np.append(est_trajectory, [est_states[el]], axis=0)
+
+
+from tools.path_plotter import plot_gt_and_est
+
+plot_gt_and_est(est_trajectory, steps=20)
+print(est_trajectory)

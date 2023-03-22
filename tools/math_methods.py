@@ -1,6 +1,6 @@
 import dataclasses
 import numpy as np
-from camera_params import CameraParams
+from tools.camera_params import CameraParams
 import math
 
 cam_params = CameraParams()
@@ -44,7 +44,7 @@ def point2xyz(
     z = depth[y_pix][x_pix] / factor
     x = (x_pix - cam_params.cx) * z / cam_params.fx
     y = (y_pix - cam_params.cy) * z / cam_params.fy
-    return Position(x, y, z)
+    return Position(x, -y, -z)
 
 
 def quaternion_to_euler(input_quat):

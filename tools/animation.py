@@ -121,5 +121,5 @@ real = np.array(
     ]
 )
 
-Animation().make_single_animation(gt)
+# Animation().make_single_animation(gt)
 Animation().make_full_animation(gt, real)
