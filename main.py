@@ -8,6 +8,36 @@ from tools.math_methods import point2xyz
 from tools.math_methods import quaternion_rotation_matrix
 from visual_odometry import get_translation_matrix
 import math
+from tools.math_methods import rotation_matrix
+
+
+def set_axes_equal(ax):
+    """Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    """
+
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5 * max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
 class GraphSlam:
@@ -19,13 +49,15 @@ class GraphSlam:
         self.poses_id = []  # idx in graph for poses
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher()
-        self.W_obs = np.eye(3) * 10e3
+        self.W_obs = np.eye(3) * 10e2
         n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3(init_mat))
         self.poses_id.append(n1)
         self.W_0 = 10e6 * np.identity(6)  # covariation of pose
         self.graph.add_factor_1pose_3d(
             mrob.geometry.SE3(init_mat), self.poses_id[-1], self.W_0
         )
+        kp, ds = self.get_img_features(img)
+        self.add_3d_landmarks(kp, ds, depth)
 
         pass
 
@@ -78,20 +110,25 @@ class GraphSlam:
         self.process_image_and_depth(img, depth)
         pass
 
-    def step_odom(self, step_num):
+    def step_odom(self, step_num, img, depth):
         node = self.graph.add_node_pose_3d(mrob.geometry.SE3())
         self.poses_id.append(node)
-
+        trans_mat = get_translation_matrix(
+            get_observation(step_num), get_observation(step_num - 1)
+        )
+        # trans_mat = np.eye(4)
+        # trans_mat[0, 3] = 0.1e-2
+        # trans_mat[1, 3] = 0.2e-2
+        # trans_mat[2, 3] = 0.1e-2
+        # trans_mat[:3, :3] = np.eye(3)
+        print(trans_mat)
         self.graph.add_factor_2poses_3d(
-            mrob.geometry.SE3(
-                get_translation_matrix(
-                    get_observation(step_num), get_observation(step_num - 1)
-                )
-            ),
+            mrob.geometry.SE3(trans_mat),
             self.poses_id[-2],
             self.poses_id[-1],
             10e2 * np.identity(6),
         )
+        # self.process_image_and_depth(img, depth)
 
     def process_image_and_depth(self, img, depth):
         kp, ds = self.get_img_features(img)
@@ -102,7 +139,7 @@ class GraphSlam:
         # Apply ratio test
         good = []
         for m, n in matches:
-            if m.distance < 0.7 * n.distance:
+            if m.distance < 0.9 * n.distance:
                 good.append([m])
 
         similarity_mask = np.zeros_like(kp, dtype=bool)
@@ -142,23 +179,21 @@ observation = get_observation(0)
 
 pose = np.array([1.3452, 0.6273, 1.6627, 0.6582, 0.6109, -0.295, -0.3265])
 init_mat = np.eye(4)
-init_mat[:3, :3] = quaternion_rotation_matrix(pose[3:])
+# init_mat[:3, :3] = quaternion_rotation_matrix(pose[3:])
+rot_mat = rotation_matrix(np.pi, 0, 0)
+# print(rot_mat)
+init_mat[:3, :3] = rot_mat
 init_mat[:3, 3] = pose[0:3]
 print(init_mat)
-# init_pose = np.zeros(6)
-# init_pose[0:3] = pose[0:3]
-# init_pose[3:] = quaternion_to_euler(pose[3:])
-# print(init_pose)
-mrob.geometry.SE3(init_mat).print()
 graph_slam = GraphSlam(observation.image, observation.depth, init_mat)
 print("Amount of descriptions in dictionary is", len(graph_slam.detected_features))
 # cv2.imshow("dad", observation.image)
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 chi2 = []
-num_steps = 10
+num_steps = 60
 for i in range(1, num_steps):
-    graph_slam.step_odom(i)
+    graph_slam.step_odom(i, get_observation(i).image, get_observation(i).depth)
     print("Processing step", i)
     # cv2.imshow("dad", observation.image)
     # cv2.waitKey(100)
@@ -189,4 +224,5 @@ from tools.path_plotter import plot_gt_and_est
 ax = plt.axes(projection="3d")
 
 plot_gt_and_est(ax, est_trajectory, steps=num_steps)
+set_axes_equal(ax)
 plt.show()

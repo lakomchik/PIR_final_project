@@ -33,5 +33,9 @@ def get_translation_matrix(obs_start: Observation, obs_goal: Observation) -> np.
         o3d.pipelines.odometry.RGBDOdometryJacobianFromHybridTerm(),
         option,
     )
+    coeff = 1.8
+    trans_hybrid_term[0, 3] *= coeff
+    trans_hybrid_term[1, 3] *= coeff
+    trans_hybrid_term[2, 3] *= coeff
 
-    return trans_hybrid_term
+    return np.asarray(trans_hybrid_term, dtype=float)

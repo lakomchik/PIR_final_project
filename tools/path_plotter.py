@@ -40,14 +40,14 @@ def plot_3d_trajectory(traj, ax, max_step=10, color="gray", label="traj"):
         color=color,
         linewidth=3,
     )
-    # arrow_length = 0.1
-    # arrow = np.array(
-    #     [
-    #         [arrow_length],
-    #         [0],
-    #         [0],
-    #     ]
-    # )
+    arrow_length = 0.1
+    arrow = np.array(
+        [
+            [arrow_length],
+            [0],
+            [0],
+        ]
+    )
     # for i in range(max_step):
     #     arrow_vector = traj[i, :3, :3].dot(arrow)
     #     # print(traj[i, :3, :3])
