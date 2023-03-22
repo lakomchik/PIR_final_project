@@ -3,6 +3,7 @@ import numpy as np
 import cv2 as cv
 import random as rand
 import dataclasses
+from tools.data_reader import get_observation
 
 from typing import List, Tuple, Dict
 from tools.camera_params import CameraParams
@@ -300,7 +301,7 @@ class VisualOdometry:
 def get_measurement(
     key_frame1: np.ndarray,
     key_frame2: np.ndarray,
-    time_stamp: int,
+    time_stamp: float,
 ) -> Measurement:
     """
     Measure velocities between two frames
@@ -386,7 +387,14 @@ def get_measurement(
     return Measurement(omega, v)
 
 
+old_frame = []
+
+
 frame1 = cv.imread("datasets/rgbd_dataset_freiburg1_xyz/rgb/1305031102.175304.png")
 frame2 = cv.imread("datasets/rgbd_dataset_freiburg1_xyz/rgb/1305031102.211214.png")
-
-get_measurement(frame1, frame2, 1)
+frame_1 = get_observation(0).image
+for i in range(1, 20):
+    frame2 = get_observation(i).image
+    print("ON iteration ", i)
+    get_measurement(frame2, frame2, 0.033)
+    frame1 = frame2.copy()

@@ -18,7 +18,7 @@ class GraphSlam:
         self.poses_id = []  # idx in graph for poses
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher()
-        self.W_obs = np.eye(3) * 10e1
+        self.W_obs = np.eye(3) * 10e3
         n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3(init_mat))
         self.poses_id.append(n1)
         self.W_0 = 10e6 * np.identity(6)  # covariation of pose
@@ -73,7 +73,7 @@ class GraphSlam:
             mrob.geometry.SE3(),
             self.poses_id[-2],
             self.poses_id[-1],
-            1e2 * np.identity(6),
+            1e1 * np.identity(6),
         )
         ###add also odometry
         self.process_image_and_depth(img, depth)
@@ -88,7 +88,7 @@ class GraphSlam:
         # Apply ratio test
         good = []
         for m, n in matches:
-            if m.distance < 0.2 * n.distance:
+            if m.distance < 0.5 * n.distance:
                 good.append([m])
 
         similarity_mask = np.zeros_like(kp, dtype=bool)
@@ -105,6 +105,14 @@ class GraphSlam:
         new_ds = ds_arr[np.logical_not(similarity_mask)]
         self.add_3d_landmarks(new_kp, new_ds, depth)
         self.update_3d_landmarks(updated_kp, updated_features, depth)
+
+    def get_landmarks_coords(self):
+        """Returns array with landmark poses
+
+        Returns:
+            _type_: _description_
+        """
+        return 0
 
 
 observation = get_observation(0)
@@ -128,10 +136,11 @@ cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 chi2 = []
-for i in range(1, 50):
+num_steps = 20
+for i in range(1, num_steps):
     observation = get_observation(i)
     # cv2.imshow("dad", observation.image)
-    # cv2.waitKey(20)
+    # cv2.waitKey(100)
     # cv2.destroyAllWindows()
     print(len(graph_slam.detected_features))
     graph_slam.step(observation.image, observation.depth)
@@ -150,6 +159,7 @@ matplotlib.use("TkAgg")
 
 
 est_states = graph_slam.graph.get_estimated_state()
+# print(est_states)
 est_trajectory = np.zeros([0, 4, 4])
 for el in graph_slam.poses_id:
     est_trajectory = np.append(est_trajectory, [est_states[el]], axis=0)
@@ -157,5 +167,5 @@ for el in graph_slam.poses_id:
 
 from tools.path_plotter import plot_gt_and_est
 
-plot_gt_and_est(est_trajectory, steps=20)
+plot_gt_and_est(est_trajectory, steps=num_steps)
 print(est_trajectory)

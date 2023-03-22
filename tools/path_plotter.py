@@ -8,12 +8,19 @@ def get_gt_mat():
     trajectory_mat = np.zeros([0, 4, 4], dtype=float)
     with open(path) as file:
         next(file)
+        ts = np.empty(0, dtype=float)
         for line in file:
             cur_mat = np.eye(4)
+            ts = np.append(ts, ([float(x) for x in line.split()][:1]))
             line_arr = np.asarray([float(x) for x in line.split()][1:])
             cur_mat[:3, :3] = quaternion_rotation_matrix(line_arr[3:])
             cur_mat[:3, 3] = line_arr[:3]
             trajectory_mat = np.append(trajectory_mat, [cur_mat], axis=0)
+        avg_time = 0.0
+        for i in range(1, ts.shape[0]):
+            avg_time += ts[i] - ts[i - 1]
+        avg_time /= ts.shape[0]
+        print("AVG_TS =, ", avg_time)
     return trajectory_mat
 
 
@@ -25,6 +32,14 @@ def plot_3d_trajectory(traj, ax, max_step=10, color="gray", label="traj"):
         traj[:max_step, 2, 3],
         color,
         label=label,
+    )
+    ax.plot3D(
+        traj[:max_step, 0, 3],
+        traj[:max_step, 1, 3],
+        traj[:max_step, 2, 3],
+        linestyle="dotted",
+        color=color,
+        linewidth=6,
     )
 
 
