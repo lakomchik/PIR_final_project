@@ -17,7 +17,7 @@ class Position:
 
 
 def point2xyz(
-    point_coords: np.ndarray, depth: np.ndarray, factor: int = 50
+    point_coords: np.ndarray, depth: np.ndarray, factor: int = 100
 ) -> Position | None:
     """
     Calculate XYZ point coordinates from the depth map
@@ -44,7 +44,7 @@ def point2xyz(
     z = depth[y_pix][x_pix] / factor
     x = (x_pix - cam_params.cx) * z / cam_params.fx
     y = (y_pix - cam_params.cy) * z / cam_params.fy
-    return Position(-y, x, -z)
+    return Position(-y, -x, z)
 
 
 def quaternion_to_euler(input_quat):
@@ -78,9 +78,13 @@ def quaternion_rotation_matrix(Q):
              frame to a point in the global reference frame.
     """
     # Extract the values from Q
-    q0 = Q[0]
-    q1 = Q[1]
-    q2 = Q[2]
+    # q0 = Q[0]
+    # q1 = Q[1]
+    # q2 = Q[2]
+    # q3 = Q[3]
+    q0 = Q[2]
+    q1 = Q[0]
+    q2 = Q[1]
     q3 = Q[3]
 
     # First row of the rotation matrix

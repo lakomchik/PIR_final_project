@@ -18,7 +18,7 @@ class GraphSlam:
         self.poses_id = []  # idx in graph for poses
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher()
-        self.W_obs = np.eye(3) * 10e1
+        self.W_obs = np.eye(3) * 10e3
         n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3(init_mat))
         self.poses_id.append(n1)
         self.W_0 = 10e6 * np.identity(6)  # covariation of pose
@@ -88,7 +88,7 @@ class GraphSlam:
         # Apply ratio test
         good = []
         for m, n in matches:
-            if m.distance < 0.5 * n.distance:
+            if m.distance < 0.7 * n.distance:
                 good.append([m])
 
         similarity_mask = np.zeros_like(kp, dtype=bool)
@@ -142,7 +142,7 @@ print("Amount of descriptions in dictionary is", len(graph_slam.detected_feature
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 chi2 = []
-num_steps = 2
+num_steps = 3
 for i in range(1, num_steps):
     observation = get_observation(i)
     # cv2.imshow("dad", observation.image)
@@ -177,5 +177,5 @@ from tools.path_plotter import plot_gt_and_est
 ax = plt.axes(projection="3d")
 landmarks = graph_slam.get_landmarks_coords()
 plot_gt_and_est(ax, est_trajectory, steps=num_steps)
-# ax.scatter(landmarks[:, 0], landmarks[:, 1], landmarks[:, 2])
+ax.scatter(landmarks[:, 0], landmarks[:, 1], landmarks[:, 2])
 plt.show()

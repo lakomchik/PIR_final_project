@@ -29,7 +29,7 @@ for i in range(height):
         z = depth_1[i][j] / factor
         x = (j - CX_DEPTH) * z / FX_DEPTH
         y = (i - CY_DEPTH) * z / FY_DEPTH
-        pcd.append([-y, -x, -z])
+        pcd.append([-y, z, -y])
 
 pcd = np.asarray(pcd)
 fig = plt.figure(figsize=(8, 8))

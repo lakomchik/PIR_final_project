@@ -40,6 +40,29 @@ def plot_3d_trajectory(traj, ax, max_step=10, color="gray", label="traj"):
         color=color,
         linewidth=3,
     )
+    # arrow_length = 0.1
+    # arrow = np.array(
+    #     [
+    #         [arrow_length],
+    #         [0],
+    #         [0],
+    #     ]
+    # )
+    # for i in range(max_step):
+    #     arrow_vector = traj[i, :3, :3].dot(arrow)
+    #     # print(traj[i, :3, :3])
+    #     # arrow_vector = arrow_vector.reshape(-1)
+    #     ax.quiver(
+    #         traj[i, 0, 3],
+    #         traj[i, 1, 3],
+    #         traj[i, 2, 3],
+    #         arrow_vector[0, 0],
+    #         arrow_vector[1, 0],
+    #         arrow_vector[2, 0],
+    #         # pivot="middle",
+    #         length=0.1,
+    #         lw=2,
+    #     )
 
 
 def plot_gt_and_est(ax, est_traj, steps=10):
