@@ -88,7 +88,7 @@ class GraphSlam:
         # Apply ratio test
         good = []
         for m, n in matches:
-            if m.distance < 0.2 * n.distance:
+            if m.distance < 0.8 * n.distance:
                 good.append([m])
 
         similarity_mask = np.zeros_like(kp, dtype=bool)
