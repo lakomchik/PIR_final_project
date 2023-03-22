@@ -82,9 +82,9 @@ def quaternion_rotation_matrix(Q):
     # q1 = Q[1]
     # q2 = Q[2]
     # q3 = Q[3]
-    q0 = Q[2]
-    q1 = Q[0]
-    q2 = Q[1]
+    q0 = Q[0]
+    q1 = Q[1]
+    q2 = Q[2]
     q3 = Q[3]
 
     # First row of the rotation matrix

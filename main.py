@@ -26,8 +26,6 @@ class GraphSlam:
         self.graph.add_factor_1pose_3d(
             mrob.geometry.SE3(init_mat), self.poses_id[-1], self.W_0
         )
-        kp, ds = self.get_img_features(img)
-        self.add_3d_landmarks(kp, ds, depth)
 
         pass
 
@@ -87,7 +85,7 @@ class GraphSlam:
         self.graph.add_factor_2poses_3d(
             mrob.geometry.SE3(
                 get_translation_matrix(
-                    get_observation(step_num - 1), get_observation(step_num)
+                    get_observation(step_num), get_observation(step_num - 1)
                 )
             ),
             self.poses_id[-2],
@@ -158,15 +156,13 @@ print("Amount of descriptions in dictionary is", len(graph_slam.detected_feature
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 chi2 = []
-num_steps = 3
+num_steps = 10
 for i in range(1, num_steps):
-    observation = get_observation(i)
+    graph_slam.step_odom(i)
+    print("Processing step", i)
     # cv2.imshow("dad", observation.image)
     # cv2.waitKey(100)
     # cv2.destroyAllWindows()
-    print(len(graph_slam.detected_features))
-    graph_slam.step(observation.image, observation.depth)
-    print("Amount of descriptions in dictionary is", len(graph_slam.detected_features))
 
     # chi2.append(graph_slam.graph.chi2())
 
@@ -191,7 +187,6 @@ for el in graph_slam.poses_id:
 from tools.path_plotter import plot_gt_and_est
 
 ax = plt.axes(projection="3d")
-landmarks = graph_slam.get_landmarks_coords()
+
 plot_gt_and_est(ax, est_trajectory, steps=num_steps)
-ax.scatter(landmarks[:, 0], landmarks[:, 1], landmarks[:, 2])
 plt.show()
