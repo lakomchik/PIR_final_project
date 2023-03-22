@@ -17,7 +17,7 @@ class Position:
 
 
 def point2xyz(
-    point_coords: np.ndarray, depth: np.ndarray, factor: int = 5000
+    point_coords: np.ndarray, depth: np.ndarray, factor: int = 50
 ) -> Position | None:
     """
     Calculate XYZ point coordinates from the depth map
@@ -44,7 +44,7 @@ def point2xyz(
     z = depth[y_pix][x_pix] / factor
     x = (x_pix - cam_params.cx) * z / cam_params.fx
     y = (y_pix - cam_params.cy) * z / cam_params.fy
-    return Position(x, y, z)
+    return Position(-y, x, -z)
 
 
 def quaternion_to_euler(input_quat):

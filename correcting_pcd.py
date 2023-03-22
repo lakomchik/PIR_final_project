@@ -19,7 +19,7 @@ FY_DEPTH = 525.0  # focal length y
 CX_DEPTH = 319.5  # optical center x
 CY_DEPTH = 239.5  # optical center y
 # compute point cloud:
-factor = 5000  # for the 16-bit PNG files
+factor = 50  # for the 16-bit PNG files
 pcd = []
 height, width = depth_1.shape
 for i in range(height):
@@ -29,7 +29,7 @@ for i in range(height):
         z = depth_1[i][j] / factor
         x = (j - CX_DEPTH) * z / FX_DEPTH
         y = (i - CY_DEPTH) * z / FY_DEPTH
-        pcd.append([x, -y, -z])
+        pcd.append([-y, -x, -z])
 
 pcd = np.asarray(pcd)
 fig = plt.figure(figsize=(8, 8))

@@ -33,26 +33,24 @@ def plot_3d_trajectory(traj, ax, max_step=10, color="gray", label="traj"):
         color,
         label=label,
     )
-    ax.plot3D(
+    ax.scatter(
         traj[:max_step, 0, 3],
         traj[:max_step, 1, 3],
         traj[:max_step, 2, 3],
-        linestyle="dotted",
         color=color,
-        linewidth=6,
+        linewidth=3,
     )
 
 
-def plot_gt_and_est(est_traj, steps=10):
+def plot_gt_and_est(ax, est_traj, steps=10):
     gt = get_gt_mat()
-    ax = plt.axes(projection="3d")
+
     plot_3d_trajectory(gt, ax, steps, "blue", label="Ground Truth")
     plot_3d_trajectory(est_traj, ax, steps, "red", label="Estimated Trajectory")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_zlabel("Z")
     ax.legend()
-    plt.show()
 
 
 # plot_gt_and_est()

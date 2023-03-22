@@ -18,7 +18,7 @@ class GraphSlam:
         self.poses_id = []  # idx in graph for poses
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher()
-        self.W_obs = np.eye(3) * 10e3
+        self.W_obs = np.eye(3) * 10e1
         n1 = self.graph.add_node_pose_3d(mrob.geometry.SE3(init_mat))
         self.poses_id.append(n1)
         self.W_0 = 10e6 * np.identity(6)  # covariation of pose
@@ -112,7 +112,13 @@ class GraphSlam:
         Returns:
             _type_: _description_
         """
-        return 0
+        est_states = self.graph.get_estimated_state()
+        points = np.empty([0, 3], dtype=float)
+        for id in self.detected_features.values():
+            print(est_states[id])
+            points = np.append(points, est_states[id].T, axis=0)
+
+        return points
 
 
 observation = get_observation(0)
@@ -136,7 +142,7 @@ cv2.imshow("dad", observation.image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 chi2 = []
-num_steps = 20
+num_steps = 2
 for i in range(1, num_steps):
     observation = get_observation(i)
     # cv2.imshow("dad", observation.image)
@@ -152,7 +158,8 @@ graph_slam.graph.solve(mrob.LM)
 import matplotlib.pyplot as plt
 import matplotlib
 
-print(graph_slam.poses_id)
+# print(graph_slam.poses_id)
+
 matplotlib.use("TkAgg")
 # plt.plot(np.arange(len(chi2)), chi2)
 # plt.show()
@@ -167,5 +174,8 @@ for el in graph_slam.poses_id:
 
 from tools.path_plotter import plot_gt_and_est
 
-plot_gt_and_est(est_trajectory, steps=num_steps)
-print(est_trajectory)
+ax = plt.axes(projection="3d")
+landmarks = graph_slam.get_landmarks_coords()
+plot_gt_and_est(ax, est_trajectory, steps=num_steps)
+# ax.scatter(landmarks[:, 0], landmarks[:, 1], landmarks[:, 2])
+plt.show()
