@@ -82,45 +82,11 @@ class Sync:
                     # print('j=',j,' i=',i," error=",error,'\n')
                     self.res[j] = i
 
-    def sort_fast(self):
-        """
-        synchronize timestemps between groundtruth and depth
-        """
-        self.res = np.zeros(len(self.depth_data.timestamp))
-        
-        for j in range(0, len(self.depth_data.timestamp) - 1):
-            error = 1e13
-            if j==0: 
-                for i in range(0, len(self.groundtruth_data.timestamp) - 1):
-                    # print("error= ",np.abs(groundtruth_data.timestamp[i] - depth_data.timestamp[j]))
-                    if (np.abs(self.groundtruth_data.timestamp[i] - self.depth_data.timestamp[j]) < error):
-                        error = np.abs(
-                            self.groundtruth_data.timestamp[i]
-                            - self.depth_data.timestamp[j]
-                        )
-                        start_pos=i
-            else:
-                counter=0
-                for i in range(start_pos, len(self.groundtruth_data.timestamp) - 1):
-                    # print("error= ",np.abs(groundtruth_data.timestamp[i] - depth_data.timestamp[j]))
-                    if (np.abs(self.groundtruth_data.timestamp[i] - self.depth_data.timestamp[j]) < error):
-                        counter+=1
-                      
-                        error = np.abs(
-                            self.groundtruth_data.timestamp[i]
-                            - self.depth_data.timestamp[j]
-                        )
-                        if counter>8:
-                            break
-                        self.res[j] = i
-                    # print('j=',j,' i=',i," error=",error,'\n')
-                    
-
     def write_txt_sync(self):
         """
         create .txt files, which has associated data such as timestemp,path to depth image and path to rgb image
         """
-        with open(self.path_xyz + "/" + "test_sync_fast.txt", "w") as f:
+        with open(self.path_xyz + "/" + "test_sync.txt", "w") as f:
             f.write("timestamp depth_path rgb_path \n")
             for i in range(0, len(self.res) - 1):
                 f.write(
