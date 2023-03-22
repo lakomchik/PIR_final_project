@@ -138,9 +138,9 @@ print(init_mat)
 mrob.geometry.SE3(init_mat).print()
 graph_slam = GraphSlam(observation.image, observation.depth, init_mat)
 print("Amount of descriptions in dictionary is", len(graph_slam.detected_features))
-cv2.imshow("dad", observation.image)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# cv2.imshow("dad", observation.image)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 chi2 = []
 num_steps = 2
 for i in range(1, num_steps):
