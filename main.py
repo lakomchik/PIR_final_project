@@ -221,16 +221,12 @@ est_trajectory = np.zeros([0, 4, 4])
 for el in graph_slam.poses_id:
     est_trajectory = np.append(est_trajectory, [est_states[el]], axis=0)
 
+from tools.animation import Animation
 
-from tools.path_plotter import plot_gt_and_est
-
-ax = plt.axes(projection="3d")
-
-plot_gt_and_est(ax, est_trajectory, steps=num_steps)
-set_axes_equal(ax)
-plt.show()
+from tools.path_plotter import plot_gt_and_est, get_gt_mat
 
 gt_mat = get_gt_mat()
+Animation().make_full_animation(gt_mat[:num_steps], est_trajectory)
 
 # plotting error
 fig, axes = plt.subplots(3, figsize=(10, 3))
