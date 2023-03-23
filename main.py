@@ -9,6 +9,7 @@ from tools.math_methods import quaternion_rotation_matrix
 from visual_odometry import get_translation_matrix
 import math
 from tools.math_methods import rotation_matrix
+from tools.path_plotter import get_gt_mat
 
 
 def set_axes_equal(ax):
@@ -180,7 +181,7 @@ observation = get_observation(0)
 pose = np.array([1.3452, 0.6273, 1.6627, 0.6582, 0.6109, -0.295, -0.3265])
 init_mat = np.eye(4)
 # init_mat[:3, :3] = quaternion_rotation_matrix(pose[3:])
-rot_mat = rotation_matrix(np.pi, 0, 0)
+rot_mat = rotation_matrix(np.pi, 10 / 180 * np.pi, 0)
 # print(rot_mat)
 init_mat[:3, :3] = rot_mat
 init_mat[:3, 3] = pose[0:3]
@@ -191,6 +192,8 @@ print("Amount of descriptions in dictionary is", len(graph_slam.detected_feature
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 chi2 = []
+
+
 num_steps = 60
 for i in range(1, num_steps):
     graph_slam.step_odom(i, get_observation(i).image, get_observation(i).depth)
@@ -225,4 +228,89 @@ ax = plt.axes(projection="3d")
 
 plot_gt_and_est(ax, est_trajectory, steps=num_steps)
 set_axes_equal(ax)
+plt.show()
+
+gt_mat = get_gt_mat()
+
+# plotting error
+fig, axes = plt.subplots(3, figsize=(10, 3))
+titles = ["X error", "Y error", "Z error"]
+ylabel = ["m", "m", "m"]
+for i, ax in enumerate(axes):
+    if i < 3:
+        err = gt_mat[:num_steps, i, 3] - est_trajectory[:num_steps, i, 3]
+        err = err.reshape(-1)
+        ax.plot(np.arange(num_steps), err)
+        ax.grid("on")
+
+        ax.plot(np.arange(num_steps), err)
+        ax.grid("on")
+    ax.set_title(titles[i])
+    ax.set_xlabel("Step")
+    ax.set_ylabel(ylabel[i])
+# fig.tight_layout(pad=5.0)
+fig.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+# plotting angular error
+from scipy.spatial.transform import Rotation as R
+
+fig, axes = plt.subplots(4)
+err_mat = []
+err_norm = []
+angles_err = []
+for j in range(num_steps):
+    err_mat.append((np.linalg.inv(gt_mat[j, :3, :3]).dot(est_trajectory[j, :3, :3])))
+    err_norm.append(np.linalg.norm(err_mat[-1]))
+    angles_err.append(R.from_matrix(err_mat[j]).as_euler("xyz", degrees=True))
+angles_err = np.asarray(angles_err)
+titles = ["Norm of orientation error", "ROLL error", "PITCH error", "YAW error"]
+ylabs = ["Rad", "Deg", "Deg", "Deg"]
+for i, ax in enumerate(axes):
+    if i == 0:
+        ax.plot(np.arange(num_steps), err_norm)
+    else:
+        ax.plot(
+            np.arange(num_steps), angles_err[:num_steps, i - 1] - angles_err[0, i - 1]
+        )
+    ax.set_title(titles[i])
+    ax.set_xlabel("step")
+    ax.set_ylabel(ylabs[i])
+    ax.grid("on")
+
+fig.subplots_adjust(hspace=0.5)
+plt.show()
+# plotting planes
+fig, axes = plt.subplots(1, 3)
+titles = ["XY trajectory", "YZ trajectory", "XZ trajectory"]
+
+for i, ax in enumerate(axes):
+    if i == 0:
+        x = 0
+        y = 1
+        xlab = "X"
+        ylab = "Y"
+    elif i == 2:
+        x = 1
+        y = 2
+        xlab = "Y"
+        ylab = "Z"
+    else:
+        x = 0
+        y = 2
+        xlab = "X"
+        ylab = "Z"
+    ax.plot(gt_mat[:num_steps, x, 3], gt_mat[:num_steps, y, 3], label="Ground Truth")
+    ax.plot(
+        est_trajectory[:num_steps, x, 3],
+        est_trajectory[:num_steps, y, 3],
+        label="Estimated Trajectory",
+    )
+    ax.set_xlabel(ylab + ", m")
+    ax.set_ylabel(xlab + ", m")
+    ax.set_title(titles[i])
+    ax.legend()
+    ax.axis("equal")
+
 plt.show()
